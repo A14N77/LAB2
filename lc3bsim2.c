@@ -422,6 +422,14 @@ void setcc(int reg){
   }
 }
 
+int sexy(int value, int bits) {
+  int signbit = 1 << (bits - 1);
+  value = value & ((1 << bits) - 1);
+  if (value & signbit)
+    value = value - (1 << bits);
+  return value;
+}
+
 void process_instruction(){
   /*  function: process_instruction
    *  
