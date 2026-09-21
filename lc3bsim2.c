@@ -1,12 +1,8 @@
 /*
-    Remove all unnecessary lines (including this one) 
-    in this comment.
-    REFER TO THE SUBMISSION INSTRUCTION FOR DETAILS
-
-    Name 1: Alan Schwartz 
-    UTEID 1: as237333
-    Name 2: Siddhartha Guntupalli
-    UTEID 2: sg59532
+	Name 1: Alan Schwartz
+	Name 2: Siddhartha Guntupalli
+	UTEID 1: as237333
+	UTEID 2: sg59532
 */
 
 /***************************************************************/
@@ -439,7 +435,6 @@ void process_instruction(){
    *       -Execute
    *       -Update NEXT_LATCHES
    */     
-   NEXT_LATCHES = CURRENT_LATCHES;
    int pc = CURRENT_LATCHES.PC & 0xFFFF;
    int inst = MEMORY[(pc>>1)][0] | (MEMORY[(pc>>1)][1] << 8); // mem access time
    int DR = (inst & 0x0E00)>>9;
@@ -448,39 +443,109 @@ void process_instruction(){
   // load an instr from mem into some reg loc at pc count 
   // case every single opcode as an instr decoded step 
    switch((inst & 0xF000) >> 12){
-    case(0x1):
+    case(0x0): { //BR (nzp all zero is a NOP)
+      int n = inst & 0x0800;
+      int z = inst & 0x0400;
+      int p = inst & 0x0200;
+      NEXT_LATCHES.PC = Low16bits(CURRENT_LATCHES.PC + 2);
+      if((n && CURRENT_LATCHES.N) || (z && CURRENT_LATCHES.Z) || (p && CURRENT_LATCHES.P)){
+        NEXT_LATCHES.PC = Low16bits(CURRENT_LATCHES.PC + 2 + (sexy(inst & 0x1FF, 9) << 1));
+      }
+      break;
+    }
+    case(0x1): //ADD
       if(inst & 0x0020){
-        NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] + CURRENT_LATCHES.REGS[(inst & 0x0007)]);
-      }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] + (inst&0x1F)); //sext next
+        NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] + sexy(inst & 0x1F, 5)); //imm5
+      }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] + CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
 
       NEXT_LATCHES.PC += 2;
       setcc(NEXT_LATCHES.REGS[DR]);
       break; 
-    case(0x2):
-      ...
+    case(0x2): { //LDB
+      int baser = SR;
+      int adr = Low16bits(CURRENT_LATCHES.REGS[baser] + sexy(inst & 0x3F, 6));
+      NEXT_LATCHES.REGS[DR] = Low16bits(sexy(MEMORY[adr >> 1][adr & 1], 8));
+      NEXT_LATCHES.PC += 2;
+      setcc(NEXT_LATCHES.REGS[DR]);
+      break;
+    }
+    case(0x3): { //STB
+      int src = DR;
+      int baser = SR; 
+      int adr = Low16bits(CURRENT_LATCHES.REGS[baser] + sexy(inst & 0x3F, 6)); 
+      MEMORY[adr >> 1][adr & 1] = CURRENT_LATCHES.REGS[src] & 0xFF;
+      NEXT_LATCHES.PC += 2;
+      break;
+    }
+    case(0x4): { //JSR/JSRR
+      int baser = SR;
+      int temp = Low16bits(CURRENT_LATCHES.PC + 2); //stash it first, baser could be R7
+      if(inst & 0x0800){
+        NEXT_LATCHES.PC = Low16bits(temp + (sexy(inst & 0x7FF, 11) << 1)); //PCoffset11
+      }else NEXT_LATCHES.PC = Low16bits(CURRENT_LATCHES.REGS[baser]);
 
-    case(0x5):
-    if(inst & 0x0020){
-      NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] & sexy(inst & 0x1F, 5)); //imm5
-    }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] & CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
+      NEXT_LATCHES.REGS[7] = temp;
+      break;
+    }
+    case(0x5): //AND
+      if(inst & 0x0020){
+        NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] & sexy(inst & 0x1F, 5)); //imm5
+      }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] & CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
 
-    NEXT_LATCHES.PC += 2;
-    setcc(NEXT_LATCHES.REGS[DR]);
-    break;
+      NEXT_LATCHES.PC += 2;
+      setcc(NEXT_LATCHES.REGS[DR]);
+      break;
+    case(0x6): { //LDW
+      int baser = SR;
+      int adr = Low16bits(CURRENT_LATCHES.REGS[baser] + (sexy(inst & 0x3F, 6) << 1));
+      NEXT_LATCHES.REGS[DR] = Low16bits(MEMORY[adr >> 1][0] | (MEMORY[adr >> 1][1] << 8));
+      NEXT_LATCHES.PC += 2;
+      setcc(NEXT_LATCHES.REGS[DR]);
+      break;
+    }
+    case(0x7): { //STW
+      int src = DR;
+      int baser = SR;
+      int adr = Low16bits(CURRENT_LATCHES.REGS[baser] + (sexy(inst & 0x3F, 6) << 1));
+      MEMORY[adr >> 1][0] = CURRENT_LATCHES.REGS[src] & 0xFF;
+      MEMORY[adr >> 1][1] = (CURRENT_LATCHES.REGS[src] >> 8) & 0xFF;
+      NEXT_LATCHES.PC += 2; 
+      break; 
+    }
+    case(0x9): //XOR
+      if(inst & 0x0020){
+        NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] ^ sexy(inst & 0x1F, 5)); //imm5
+      }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] ^ CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
 
-    case(0x9):
-    if(inst & 0x0020){
-      NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] ^ sexy(inst & 0x1F, 5)); //imm5
-    }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] ^ CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
+      NEXT_LATCHES.PC += 2;
+      setcc(NEXT_LATCHES.REGS[DR]);
+      break;
+    case(0xC): { //JMP/RET (RET is just JMP R7)
+      int baser = SR;
+      NEXT_LATCHES.PC = Low16bits(CURRENT_LATCHES.REGS[baser]);
+      break;
+    }
+    case(0xD): { //SHF
+      int amt = inst & 0x000F;
+      if(!(inst & 0x0010)){
+        NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] << amt); //LSHF
+      }else if(!(inst & 0x0020)){
+        NEXT_LATCHES.REGS[DR] = Low16bits(Low16bits(CURRENT_LATCHES.REGS[SR]) >> amt); //RSHFL
+      }else NEXT_LATCHES.REGS[DR] = Low16bits(sexy(CURRENT_LATCHES.REGS[SR], 16) >> amt); //RSHFA
 
-    NEXT_LATCHES.PC += 2;
-    setcc(NEXT_LATCHES.REGS[DR]);
-    break;
+      NEXT_LATCHES.PC += 2;
+      setcc(NEXT_LATCHES.REGS[DR]);
+      break;
+    }
+    case(0xE): //LEA (no cc on this one)
+      NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.PC + 2 + (sexy(inst & 0x1FF, 9) << 1));
+      NEXT_LATCHES.PC += 2;
+      break;
+    case(0xF): //TRAP
+      NEXT_LATCHES.REGS[7] = Low16bits(CURRENT_LATCHES.PC + 2);
+      NEXT_LATCHES.PC = Low16bits(MEMORY[(inst & 0x00FF)][0] | (MEMORY[(inst & 0x00FF)][1] << 8));
+      break;
 
-    case(0xF):
-    NEXT_LATCHES.REGS[7] = Low16bits(CURRENT_LATCHES.PC + 2);
-    NEXT_LATCHES.PC = MEMORY[(inst & 0x00FF)][0] | (MEMORY[(inst & 0x00FF)][1] << 8);
-    break;
     //case statement encapulates the execution detials of that operation 
     //remember to set condition codes for valid ops: operate (add and etc), data movement (LD ST), control flow (br, jsr, etc)
     //what do we do about memory access paterns that require multi cycles, this relates to state 33 as well 

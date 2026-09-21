@@ -1,0 +1,67 @@
+EE 460N Lab 2 -- expected output for lab2test.asm
+Name 1: Alan Schwartz          UTEID 1: as237333
+Name 2: Siddhartha Guntupalli  UTEID 2: sg59532
+
+How to reproduce
+----------------
+  gcc -std=c99 -o simulate lc3bsim2.c
+  assemble lab2test.asm isaprogram
+  ./simulate isaprogram
+
+  LC-3b-SIM> go
+  LC-3b-SIM> mdump 0x309e 0x30cc
+  LC-3b-SIM> rdump
+  LC-3b-SIM> quit
+
+The program is assembled at x3000. DATA lands at x309a, RES at x309e and
+RESEND at x30ce. Every test writes its result into RES, so one mdump of
+x309e..x30cc covers the whole run.
+
+
+Expected memory, x309e..x30cc
+-----------------------------
+  addr      value    what it checks
+  0x309e :  0x1239   ADD imm5 form, x1234 + 5
+  0x30a0 :  0xbe01   ADD SR2 form, x1234 + xABCD, carry out of bit 15 dropped
+  0x30a2 :  0x1234   AND imm5 form, imm5 #-2 sign-extends to xFFFE
+  0x30a4 :  0x0204   AND SR2 form, x1234 & xABCD
+  0x30a6 :  0x123b   XOR imm5 form, x1234 ^ x000F
+  0x30a8 :  0xb9f9   XOR SR2 form, x1234 ^ xABCD
+  0x30aa :  0xedcb   NOT, assembled as XOR with imm5 x1F
+  0x30ac :  0x2340   LSHF x1234 by 4, bits shifted past bit 15 dropped
+  0x30ae :  0x0abc   RSHFL xABCD by 4, zero fill
+  0x30b0 :  0xfabc   RSHFA xABCD by 4, sign fill (xABCD is negative)
+  0x30b2 :  0xffcd   LDB of the low byte of xABCD, sign extended
+  0x30b4 :  0xffab   LDB of the high byte of xABCD, sign extended
+  0x30b6 :  0x0003   BR taken on z, not taken on n, then unconditional
+  0x30b8 :  0x000f   backward BRp loop, 5+4+3+2+1
+  0x30ba :  0x1234   STW with a negative offset6 (RESEND-20)
+  0x30bc :  0x0034   STB wrote only the low byte, high byte still zero
+  0x30be :  0x1234   LDW with a negative offset6 (RESEND-52 = DATA)
+  0x30c0 :  0x0007   LEA did not disturb the condition codes
+  0x30c2 :  0x000a   JSR with PCoffset11, then RET
+  0x30c4 :  0x3082   return address JSR stored in R7 (incremented PC)
+  0x30c6 :  0x000b   JSRR with BaseR, then RET
+  0x30c8 :  0x0001   JMP skipped over the instruction after it
+  0x30ca :  0x0000   unused
+  0x30cc :  0x0000   unused
+
+
+Expected final state (rdump after go)
+-------------------------------------
+  Instruction Count : 84
+  PC                : 0x0000
+  CCs: N = 0  Z = 0  P = 1
+  Registers:
+  0: 0x309a     &DATA, left by LEA
+  1: 0x1234
+  2: 0xabcd
+  3: 0x309e     &RES, left by LEA
+  4: 0x3094     &SUB2, the JSRR target
+  5: 0x0001
+  6: 0x000b     set by SUB2
+  7: 0x308e     incremented PC saved by the HALT trap
+
+PC is 0x0000 because TRAP x25 reads the trap vector table, which the shell
+zeroes out, and the shell halts the simulator when PC becomes 0. R7 holding
+0x308e confirms TRAP saved the incremented PC before jumping.
