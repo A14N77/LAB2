@@ -458,6 +458,29 @@ void process_instruction(){
       break; 
     case(0x2):
       ...
+
+    case(0x5):
+    if(inst & 0x0020){
+      NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] & sexy(inst & 0x1F, 5)); //imm5
+    }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] & CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
+
+    NEXT_LATCHES.PC += 2;
+    setcc(NEXT_LATCHES.REGS[DR]);
+    break;
+
+    case(0x9):
+    if(inst & 0x0020){
+      NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] ^ sexy(inst & 0x1F, 5)); //imm5
+    }else NEXT_LATCHES.REGS[DR] = Low16bits(CURRENT_LATCHES.REGS[SR] ^ CURRENT_LATCHES.REGS[(inst & 0x0007)]); //SR2
+
+    NEXT_LATCHES.PC += 2;
+    setcc(NEXT_LATCHES.REGS[DR]);
+    break;
+
+    case(0xF):
+    NEXT_LATCHES.REGS[7] = Low16bits(CURRENT_LATCHES.PC + 2);
+    NEXT_LATCHES.PC = MEMORY[(inst & 0x00FF)][0] | (MEMORY[(inst & 0x00FF)][1] << 8);
+    break;
     //case statement encapulates the execution detials of that operation 
     //remember to set condition codes for valid ops: operate (add and etc), data movement (LD ST), control flow (br, jsr, etc)
     //what do we do about memory access paterns that require multi cycles, this relates to state 33 as well 
